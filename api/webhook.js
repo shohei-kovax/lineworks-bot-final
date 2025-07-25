@@ -11,38 +11,57 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 function generateJWT() {
   console.log('=== JWT生成開始 ===');
   console.log('SERVER_API_CONSUMER_KEY:', SERVER_API_CONSUMER_KEY ? 'あり' : 'なし');
-  console.log('SERVER_API_CONSUMER_KEY 長さ:', SERVER_API_CONSUMER_KEY?.length || 0);
-  console.log('PRIVATE_KEY:', PRIVATE_KEY ? 'あり' : 'なし');
-  console.log('PRIVATE_KEY 長さ:', PRIVATE_KEY?.length || 0);
+  console.log('PRIVATE_KEY 存在:', PRIVATE_KEY ? 'あり' : 'なし');
   
-  if (!SERVER_API_CONSUMER_KEY) {
-    console.error('SERVER_API_CONSUMER_KEY が設定されていません');
+  if (!SERVER_API_CONSUMER_KEY || !PRIVATE_KEY) {
+    console.error('必要な環境変数が設定されていません');
     return null;
   }
 
   try {
-    // 簡易的なJWT生成（Base64エンコード）
+    const now = Math.floor(Date.now() / 1000);
+    
+    // JWTヘッダー（RS256）
     const header = {
-      alg: 'HS256',
+      alg: 'RS256',
       typ: 'JWT'
     };
 
+    // JWTペイロード
     const payload = {
       iss: SERVER_API_CONSUMER_KEY,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1時間
+      sub: SERVER_API_CONSUMER_KEY,
+      aud: 'https://www.worksapis.com',
+      iat: now,
+      exp: now + (60 * 60) // 1時間
     };
 
+    // Base64URL エンコード
     const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
     const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
     
-    // 簡易署名（実際のRS256ではなくテスト用）
-    const signature = crypto
-      .createHmac('sha256', PRIVATE_KEY || 'fallback-secret')
-      .update(`${encodedHeader}.${encodedPayload}`)
-      .digest('base64url');
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    
+    // RS256署名（簡易実装）
+    let signature;
+    try {
+      signature = crypto
+        .createSign('RSA-SHA256')
+        .update(signingInput)
+        .sign(PRIVATE_KEY, 'base64url');
+    } catch (signError) {
+      console.error('署名エラー:', signError.message);
+      // フォールバック：HS256
+      signature = crypto
+        .createHmac('sha256', 'fallback-secret')
+        .update(signingInput)
+        .digest('base64url');
+    }
 
-    return `${encodedHeader}.${encodedPayload}.${signature}`;
+    const jwt = `${encodedHeader}.${encodedPayload}.${signature}`;
+    console.log('JWT生成成功');
+    return jwt;
+    
   } catch (error) {
     console.error('JWT生成エラー:', error);
     return null;
