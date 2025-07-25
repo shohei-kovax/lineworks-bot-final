@@ -8,7 +8,6 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SERVICE_ACCOUNT = process.env.SERVICE_ACCOUNT;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
 
 // JWT生成関数
 function generateJWT() {
@@ -116,10 +115,10 @@ async function sendMessage(channelId, content) {
       return null;
     }
     
-    console.log('送信先URL:', `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`);
+    console.log('送信先URL:', `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${channelId}/messages`);
     
     const response = await axios.post(
-      `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`,
+      `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${channelId}/messages`,
       {
         content: {
           type: 'text',
@@ -276,7 +275,8 @@ export default async function handler(req, res) {
             
             // 環境変数テスト
             console.log('=== 環境変数テスト ===');
-            console.log('SERVER_API_CONSUMER_KEY:', SERVER_API_CONSUMER_KEY ? 'あり' : 'なし');
+            console.log('CLIENT_ID:', CLIENT_ID ? 'あり' : 'なし');
+            console.log('SERVICE_ACCOUNT:', SERVICE_ACCOUNT ? 'あり' : 'なし');
             console.log('BOT_ID:', BOT_ID ? 'あり' : 'なし');
             
             // 返信送信テスト
