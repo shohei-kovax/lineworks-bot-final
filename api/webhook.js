@@ -4,16 +4,19 @@ import crypto from 'crypto';
 // 環境変数
 const BOT_SECRET = process.env.BOT_SECRET;
 const BOT_ID = process.env.BOT_ID;
-const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const SERVICE_ACCOUNT = process.env.SERVICE_ACCOUNT;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 // JWT生成関数
 function generateJWT() {
   console.log('=== JWT生成開始 ===');
-  console.log('SERVER_API_CONSUMER_KEY:', SERVER_API_CONSUMER_KEY ? 'あり' : 'なし');
+  console.log('CLIENT_ID:', CLIENT_ID ? 'あり' : 'なし');
+  console.log('SERVICE_ACCOUNT:', SERVICE_ACCOUNT ? 'あり' : 'なし');
   console.log('PRIVATE_KEY 存在:', PRIVATE_KEY ? 'あり' : 'なし');
   
-  if (!SERVER_API_CONSUMER_KEY || !PRIVATE_KEY) {
+  if (!CLIENT_ID || !SERVICE_ACCOUNT || !PRIVATE_KEY) {
     console.error('必要な環境変数が設定されていません');
     return null;
   }
@@ -27,14 +30,15 @@ function generateJWT() {
       typ: 'JWT'
     };
 
-    // JWTペイロード
+    // JWTペイロード（LINE WORKS仕様に準拠）
     const payload = {
-      iss: SERVER_API_CONSUMER_KEY,
-      sub: SERVER_API_CONSUMER_KEY,
-      aud: 'https://www.worksapis.com',
+      iss: CLIENT_ID,
+      sub: SERVICE_ACCOUNT, 
       iat: now,
       exp: now + (60 * 60) // 1時間
     };
+
+    console.log('JWT payload:', payload);
 
     // Base64URL エンコード
     const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
@@ -51,11 +55,7 @@ function generateJWT() {
         .sign(PRIVATE_KEY, 'base64url');
     } catch (signError) {
       console.error('署名エラー:', signError.message);
-      // フォールバック：HS256
-      signature = crypto
-        .createHmac('sha256', 'fallback-secret')
-        .update(signingInput)
-        .digest('base64url');
+      return null;
     }
 
     const jwt = `${encodedHeader}.${encodedPayload}.${signature}`;
@@ -68,10 +68,55 @@ function generateJWT() {
   }
 }
 
+// Access Token取得関数
+async function getAccessToken() {
+  try {
+    const jwt = generateJWT();
+    if (!jwt) {
+      console.error('JWT生成失敗');
+      return null;
+    }
+
+    console.log('Access Token取得開始');
+    
+    const response = await axios.post(
+      'https://auth.worksmobile.com/oauth2/v2.0/token',
+      new URLSearchParams({
+        assertion: jwt,
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        scope: 'bot'
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+
+    console.log('Access Token取得成功');
+    return response.data.access_token;
+    
+  } catch (error) {
+    console.error('Access Token取得エラー:');
+    console.error('Status:', error.response?.status);
+    console.error('Data:', error.response?.data);
+    return null;
+  }
+}
+
 // メッセージ送信関数
 async function sendMessage(channelId, content) {
   try {
-    const jwt = generateJWT();
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      console.error('Access Token取得失敗');
+      return null;
+    }
+    
+    console.log('送信先URL:', `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`);
+    
     const response = await axios.post(
       `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`,
       {
@@ -82,7 +127,7 @@ async function sendMessage(channelId, content) {
       },
       {
         headers: {
-          'Authorization': `Bearer ${jwt}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       }
@@ -90,7 +135,11 @@ async function sendMessage(channelId, content) {
     console.log('メッセージ送信成功:', response.data);
     return response.data;
   } catch (error) {
-    console.error('メッセージ送信エラー:', error.response?.data || error.message);
+    console.error('メッセージ送信エラー詳細:');
+    console.error('Status:', error.response?.status);
+    console.error('Headers:', error.response?.headers);
+    console.error('Data:', error.response?.data);
+    console.error('Message:', error.message);
     return null;
   }
 }
