@@ -42,7 +42,7 @@ function generateJWT() {
     
     const signingInput = `${encodedHeader}.${encodedPayload}`;
     
-    // RS256署名（簡易実装）
+    // RS256署名
     let signature;
     try {
       signature = crypto
