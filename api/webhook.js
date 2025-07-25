@@ -8,6 +8,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SERVICE_ACCOUNT = process.env.SERVICE_ACCOUNT;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
 
 // JWT生成関数
 function generateJWT() {
