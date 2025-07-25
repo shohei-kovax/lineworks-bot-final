@@ -1,7 +1,7 @@
 import axios from 'axios';
 import crypto from 'crypto';
 
-// 環境変数設定
+// 環境変数
 const BOT_SECRET = process.env.BOT_SECRET;
 const BOT_ID = process.env.BOT_ID;
 const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
@@ -9,6 +9,12 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 // JWT生成関数
 function generateJWT() {
+  console.log('=== JWT生成開始 ===');
+  console.log('SERVER_API_CONSUMER_KEY:', SERVER_API_CONSUMER_KEY ? 'あり' : 'なし');
+  console.log('SERVER_API_CONSUMER_KEY 長さ:', SERVER_API_CONSUMER_KEY?.length || 0);
+  console.log('PRIVATE_KEY:', PRIVATE_KEY ? 'あり' : 'なし');
+  console.log('PRIVATE_KEY 長さ:', PRIVATE_KEY?.length || 0);
+  
   if (!SERVER_API_CONSUMER_KEY) {
     console.error('SERVER_API_CONSUMER_KEY が設定されていません');
     return null;
@@ -199,13 +205,16 @@ export default async function handler(req, res) {
             const replyMessage = processMessage(messageText);
             console.log(`返信メッセージ: "${replyMessage}"`);
             
-            // 返信送信
-            const sendResult = await sendMessage(channelId, replyMessage);
-            if (sendResult) {
-              console.log('返信送信成功');
-            } else {
-              console.log('返信送信失敗');
-            }
+            // 送信機能は一時的にスキップ（テスト用）
+            console.log('メッセージ送信をスキップ（テスト用）');
+            
+            // 返信送信（コメントアウト）
+            // const sendResult = await sendMessage(channelId, replyMessage);
+            // if (sendResult) {
+            //   console.log('返信送信成功');
+            // } else {
+            //   console.log('返信送信失敗');
+            // }
           } else {
             console.log('チャンネルIDまたはメッセージテキストが不正');
           }
