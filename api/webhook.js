@@ -1,7 +1,7 @@
 import axios from 'axios';
 import crypto from 'crypto';
 
-// 環境変数
+// 環境変数設定
 const BOT_SECRET = process.env.BOT_SECRET;
 const BOT_ID = process.env.BOT_ID;
 const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
