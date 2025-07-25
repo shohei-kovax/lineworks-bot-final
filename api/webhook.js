@@ -205,16 +205,18 @@ export default async function handler(req, res) {
             const replyMessage = processMessage(messageText);
             console.log(`返信メッセージ: "${replyMessage}"`);
             
-            // 送信機能は一時的にスキップ（テスト用）
-            console.log('メッセージ送信をスキップ（テスト用）');
+            // 環境変数テスト
+            console.log('=== 環境変数テスト ===');
+            console.log('SERVER_API_CONSUMER_KEY:', SERVER_API_CONSUMER_KEY ? 'あり' : 'なし');
+            console.log('BOT_ID:', BOT_ID ? 'あり' : 'なし');
             
-            // 返信送信（コメントアウト）
-            // const sendResult = await sendMessage(channelId, replyMessage);
-            // if (sendResult) {
-            //   console.log('返信送信成功');
-            // } else {
-            //   console.log('返信送信失敗');
-            // }
+            // 返信送信テスト
+            const sendResult = await sendMessage(channelId, replyMessage);
+            if (sendResult) {
+              console.log('返信送信成功');
+            } else {
+              console.log('返信送信失敗');
+            }
           } else {
             console.log('チャンネルIDまたはメッセージテキストが不正');
           }
