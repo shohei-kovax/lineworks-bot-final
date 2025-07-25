@@ -7,11 +7,40 @@ const BOT_ID = process.env.BOT_ID;
 const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-// JWT生成関数（簡略版）
+// JWT生成関数
 function generateJWT() {
-  // 実際の実装では、RS256でJWTを生成
-  // 今はテスト用の固定値
-  return 'test-jwt-token';
+  if (!SERVER_API_CONSUMER_KEY) {
+    console.error('SERVER_API_CONSUMER_KEY が設定されていません');
+    return null;
+  }
+
+  try {
+    // 簡易的なJWT生成（Base64エンコード）
+    const header = {
+      alg: 'HS256',
+      typ: 'JWT'
+    };
+
+    const payload = {
+      iss: SERVER_API_CONSUMER_KEY,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1時間
+    };
+
+    const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    
+    // 簡易署名（実際のRS256ではなくテスト用）
+    const signature = crypto
+      .createHmac('sha256', PRIVATE_KEY || 'fallback-secret')
+      .update(`${encodedHeader}.${encodedPayload}`)
+      .digest('base64url');
+
+    return `${encodedHeader}.${encodedPayload}.${signature}`;
+  } catch (error) {
+    console.error('JWT生成エラー:', error);
+    return null;
+  }
 }
 
 // メッセージ送信関数
