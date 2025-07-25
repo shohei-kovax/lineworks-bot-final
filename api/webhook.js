@@ -164,14 +164,31 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const events = req.body?.events || [];
+      // LINE WORKSのデータ形式に対応
+      let events = [];
+      
+      if (req.body.events) {
+        // 通常のWebhook形式
+        events = req.body.events;
+      } else if (req.body.type === 'message') {
+        // 直接メッセージ形式
+        events = [{
+          type: req.body.type,
+          message: req.body.content,
+          source: { 
+            channelId: req.body.source?.userId || req.body.source?.domainId,
+            userId: req.body.source?.userId
+          }
+        }];
+      }
+      
       console.log(`イベント数: ${events.length}`);
       
       for (const event of events) {
         console.log('イベントタイプ:', event.type);
         
         if (event.type === 'message' && event.message?.type === 'text') {
-          const channelId = event.source?.channelId;
+          const channelId = event.source?.channelId || event.source?.userId;
           const messageText = event.message.text;
           
           console.log(`受信メッセージ: "${messageText}"`);
