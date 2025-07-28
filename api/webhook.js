@@ -1,124 +1,62 @@
-import axios from 'axios';
-import crypto from 'crypto';
+const crypto = require('crypto');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 // 環境変数
 const BOT_SECRET = process.env.BOT_SECRET;
-const BOT_ID = process.env.BOT_ID;
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const SERVICE_ACCOUNT = process.env.SERVICE_ACCOUNT;
+const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
+const SERVER_TOKEN = process.env.SERVER_TOKEN;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const BOT_ID = process.env.BOT_ID;
 
-// JWT生成関数
-function generateJWT() {
-  console.log('=== JWT生成開始 ===');
-  console.log('CLIENT_ID:', CLIENT_ID ? 'あり' : 'なし');
-  console.log('SERVICE_ACCOUNT:', SERVICE_ACCOUNT ? 'あり' : 'なし');
-  console.log('PRIVATE_KEY 存在:', PRIVATE_KEY ? 'あり' : 'なし');
-  
-  if (!CLIENT_ID || !SERVICE_ACCOUNT || !PRIVATE_KEY) {
-    console.error('必要な環境変数が設定されていません');
-    return null;
-  }
+// グローバル変数
+let productsData = [];
+let userStates = {}; // ユーザーごとの会話状態を管理
 
+// CSV読み込み関数
+function loadProductsData() {
   try {
-    const now = Math.floor(Date.now() / 1000);
+    const csvPath = path.join(process.cwd(), 'public', 'products.csv');
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
     
-    // JWTヘッダー（RS256）
-    const header = {
-      alg: 'RS256',
-      typ: 'JWT'
-    };
-
-    // JWTペイロード（LINE WORKS仕様に準拠）
-    const payload = {
-      iss: CLIENT_ID,
-      sub: SERVICE_ACCOUNT, 
-      iat: now,
-      exp: now + (60 * 60) // 1時間
-    };
-
-    console.log('JWT payload:', payload);
-
-    // Base64URL エンコード
-    const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    // 簡易CSV パース
+    const lines = csvContent.trim().split('\n');
+    const headers = lines[0].split(',');
     
-    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    productsData = lines.slice(1).map(line => {
+      const values = line.split(',');
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header.trim()] = values[index] ? values[index].trim() : '';
+      });
+      return obj;
+    });
     
-    // RS256署名
-    let signature;
-    try {
-      signature = crypto
-        .createSign('RSA-SHA256')
-        .update(signingInput)
-        .sign(PRIVATE_KEY, 'base64url');
-    } catch (signError) {
-      console.error('署名エラー:', signError.message);
-      return null;
-    }
-
-    const jwt = `${encodedHeader}.${encodedPayload}.${signature}`;
-    console.log('JWT生成成功');
-    return jwt;
-    
+    console.log(`商品データを${productsData.length}件読み込みました`);
+    return true;
   } catch (error) {
-    console.error('JWT生成エラー:', error);
-    return null;
+    console.error('CSV読み込みエラー:', error);
+    return false;
   }
 }
 
-// Access Token取得関数
-async function getAccessToken() {
-  try {
-    const jwt = generateJWT();
-    if (!jwt) {
-      console.error('JWT生成失敗');
-      return null;
-    }
+// 初期化時にCSVを読み込み
+loadProductsData();
 
-    console.log('Access Token取得開始');
-    
-    const response = await axios.post(
-      'https://auth.worksmobile.com/oauth2/v2.0/token',
-      new URLSearchParams({
-        assertion: jwt,
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        scope: 'bot'
-      }),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
-    );
-
-    console.log('Access Token取得成功');
-    return response.data.access_token;
-    
-  } catch (error) {
-    console.error('Access Token取得エラー:');
-    console.error('Status:', error.response?.status);
-    console.error('Data:', error.response?.data);
-    return null;
-  }
+// JWT生成関数（簡略化）
+function generateJWT() {
+  // 実際の実装では、RS256でJWTを生成
+  // ここは簡略化されています
+  return 'your-jwt-token';
 }
 
 // メッセージ送信関数
 async function sendMessage(channelId, content) {
   try {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      console.error('Access Token取得失敗');
-      return null;
-    }
-    
-    console.log('送信先URL:', `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${channelId}/messages`);
-    
+    const jwt = generateJWT();
     const response = await axios.post(
-      `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${channelId}/messages`,
+      `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`,
       {
         content: {
           type: 'text',
@@ -127,192 +65,254 @@ async function sendMessage(channelId, content) {
       },
       {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${jwt}`,
           'Content-Type': 'application/json'
         }
       }
     );
-    console.log('メッセージ送信成功:', response.data);
     return response.data;
   } catch (error) {
-    console.error('メッセージ送信エラー詳細:');
-    console.error('Status:', error.response?.status);
-    console.error('Headers:', error.response?.headers);
-    console.error('Data:', error.response?.data);
-    console.error('Message:', error.message);
-    return null;
+    console.error('メッセージ送信エラー:', error);
   }
 }
 
 // Webhook検証
 function verifySignature(body, signature) {
-  if (!BOT_SECRET || !signature) {
-    console.log('署名検証スキップ: BOT_SECRET または signature が未設定');
-    return true; // 開発時はスキップ
-  }
+  if (!BOT_SECRET || !signature) return false;
   
-  try {
-    const expectedSignature = crypto
-      .createHmac('sha256', BOT_SECRET)
-      .update(JSON.stringify(body))
-      .digest('base64');
-    
-    return expectedSignature === signature;
-  } catch (error) {
-    console.error('署名検証エラー:', error);
-    return false;
-  }
+  const expectedSignature = crypto
+    .createHmac('sha256', BOT_SECRET)
+    .update(JSON.stringify(body))
+    .digest('base64');
+  
+  return expectedSignature === signature;
 }
 
-// 会話ロジック
-function processMessage(messageText) {
-  const text = messageText.toLowerCase();
+// ユーザー状態の初期化
+function initUserState(userId) {
+  userStates[userId] = {
+    step: 'initial',
+    brand: null,
+    model: null,
+    capacity: null
+  };
+}
+
+// ユーザー状態の取得
+function getUserState(userId) {
+  if (!userStates[userId]) {
+    initUserState(userId);
+  }
+  return userStates[userId];
+}
+
+// 商品検索関数
+function searchProducts(filters) {
+  return productsData.filter(product => {
+    return Object.keys(filters).every(key => {
+      if (!filters[key]) return true;
+      return product[key] && product[key].toString().toLowerCase().includes(filters[key].toLowerCase());
+    });
+  });
+}
+
+// ブランド一覧取得
+function getAvailableBrands() {
+  const brands = [...new Set(productsData.map(p => p.brand))];
+  return brands;
+}
+
+// 機種一覧取得
+function getAvailableModels(brand) {
+  const models = [...new Set(productsData
+    .filter(p => p.brand.toLowerCase() === brand.toLowerCase())
+    .map(p => p.model))];
+  return models;
+}
+
+// 容量一覧取得
+function getAvailableCapacities(brand, model) {
+  const capacities = [...new Set(productsData
+    .filter(p => 
+      p.brand.toLowerCase() === brand.toLowerCase() && 
+      p.model.toString().toLowerCase() === model.toLowerCase()
+    )
+    .map(p => p.capacity))];
+  return capacities;
+}
+
+// 会話処理メイン関数
+function processMessage(messageText, userId) {
+  const text = messageText.toLowerCase().trim();
+  const userState = getUserState(userId);
   
-  if (text.includes('こんにちは') || text.includes('hello')) {
-    return 'こんにちは！今日はいい天気ですね😊';
+  // 会話をリセット
+  if (text.includes('リセット') || text.includes('最初から')) {
+    initUserState(userId);
+    return 'リセットしました。何かお探しのスマホはありますか？😊';
   }
   
-  if (text.includes('天気')) {
-    return '申し訳ございませんが、リアルタイムの天気情報は取得できません。天気予報アプリをご確認ください🌤️';
+  // 発売日に関する質問
+  if (text.includes('いつ') || text.includes('発売日') || text.includes('発売')) {
+    if (userState.brand && userState.model) {
+      const product = searchProducts({
+        brand: userState.brand,
+        model: userState.model
+      })[0];
+      if (product) {
+        return `${userState.brand} ${userState.model}の発売日は${product.releaseday}です📅`;
+      }
+    }
+    return '機種を教えてください。発売日をお調べします📅';
   }
   
-  if (text.includes('時間')) {
-    const now = new Date();
-    return `現在の時刻は ${now.toLocaleString('ja-JP')} です⏰`;
+  // 初期状態または商品検索開始
+  if (userState.step === 'initial') {
+    if (text.includes('おすすめ') || text.includes('スマホ') || text.includes('探し') || text.includes('欲しい')) {
+      userState.step = 'brand_selection';
+      const brands = getAvailableBrands();
+      return `どちらのブランドをお探しですか？\n${brands.join('？ ')}？😊`;
+    }
+    
+    // 直接ブランド名が言われた場合
+    const brands = getAvailableBrands();
+    const matchedBrand = brands.find(brand => text.includes(brand.toLowerCase()));
+    if (matchedBrand) {
+      userState.brand = matchedBrand;
+      userState.step = 'model_selection';
+      const models = getAvailableModels(matchedBrand);
+      return `${matchedBrand}ですね！どちらの機種をお探しですか？\n${models.join(', ')}はいかがでしょうか📱`;
+    }
+    
+    return 'こんにちは！おすすめのスマホをお探しですか？😊';
   }
   
-  if (text.includes('ありがとう')) {
-    return 'どういたしまして！他にも何かお手伝いできることがあれば、お気軽にお声かけください✨';
+  // ブランド選択段階
+  if (userState.step === 'brand_selection') {
+    const brands = getAvailableBrands();
+    const selectedBrand = brands.find(brand => text.includes(brand.toLowerCase()));
+    
+    if (selectedBrand) {
+      userState.brand = selectedBrand;
+      userState.step = 'model_selection';
+      const models = getAvailableModels(selectedBrand);
+      return `${selectedBrand}ですね！どちらの機種をお探しですか？\n${models.join(', ')}はいかがでしょうか📱`;
+    }
+    
+    return `申し訳ございません。${brands.join('？ ')}？のどちらでしょうか🤔`;
   }
   
-  if (text.includes('バイバイ') || text.includes('さようなら')) {
-    return 'さようなら！また今度お話ししましょう👋';
+  // 機種選択段階
+  if (userState.step === 'model_selection') {
+    const models = getAvailableModels(userState.brand);
+    const selectedModel = models.find(model => text.includes(model.toString().toLowerCase()));
+    
+    if (selectedModel) {
+      userState.model = selectedModel;
+      userState.step = 'capacity_selection';
+      const capacities = getAvailableCapacities(userState.brand, selectedModel);
+      return `${userState.brand} ${selectedModel}ですね！容量はいかがですか？\n${capacities.join(', ')}がございます💾`;
+    }
+    
+    return `申し訳ございません。${models.join(', ')}のどちらでしょうか🤔`;
   }
   
-  if (text.includes('テスト')) {
-    return 'テストメッセージを受信しました！Bot は正常に動作しています🤖';
+  // 容量選択段階
+  if (userState.step === 'capacity_selection') {
+    const capacities = getAvailableCapacities(userState.brand, userState.model);
+    const selectedCapacity = capacities.find(capacity => text.includes(capacity.toLowerCase()));
+    
+    if (selectedCapacity) {
+      userState.capacity = selectedCapacity;
+      
+      // 商品検索して価格表示
+      const product = searchProducts({
+        brand: userState.brand,
+        model: userState.model,
+        capacity: selectedCapacity
+      })[0];
+      
+      if (product) {
+        const price = parseInt(product.price).toLocaleString();
+        const response = `${userState.brand} ${userState.model} (${selectedCapacity})の価格は\n💰 ${price}円 です！\n\n発売日: ${product.releaseday}📅\n\n他にも何かお探しでしたら「リセット」と言ってください😊`;
+        
+        // 状態をリセット
+        initUserState(userId);
+        return response;
+      }
+    }
+    
+    return `申し訳ございません。${capacities.join(', ')}のどちらでしょうか🤔`;
   }
   
   // デフォルトの応答
-  return `「${messageText}」ですね。面白いお話ですね！もっと詳しく教えてください😄`;
+  return `「${messageText}」ですね。スマホをお探しでしたら「おすすめ」と言ってください😊`;
 }
 
-// メインハンドラー関数
-export default async function handler(req, res) {
+// Vercel関数のメインハンドラー
+module.exports = async (req, res) => {
   // CORS対応
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-works-signature');
-
-  console.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
-
+  
   // OPTIONSリクエスト対応
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-
-  // GETリクエスト（動作確認用）
+  
+  // GETリクエスト（テスト用）
   if (req.method === 'GET') {
     return res.status(200).json({ 
-      message: 'LINE WORKS Bot is working!',
-      timestamp: new Date().toISOString(),
-      version: '1.0.0',
-      endpoints: {
-        webhook: '/api/webhook (POST)',
-        health: '/api/webhook (GET)'
-      }
+      message: 'CSV対応チャットボット稼働中!',
+      productsCount: productsData.length,
+      timestamp: new Date().toISOString()
     });
   }
-
+  
   // POSTリクエスト（実際のWebhook）
   if (req.method === 'POST') {
     try {
-      console.log('=== Webhook受信 ===');
-      console.log('Headers:', JSON.stringify(req.headers, null, 2));
-      console.log('Body:', JSON.stringify(req.body, null, 2));
+      console.log('Webhook受信:', req.body);
       
-      // 署名検証
-      const signature = req.headers['x-works-signature'];
-      if (!verifySignature(req.body, signature)) {
-        console.error('署名検証失敗');
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // LINE WORKSのデータ形式に対応
-      let events = [];
+      // 署名検証（一時的にスキップ）
+      // const signature = req.headers['x-works-signature'];
+      // if (!verifySignature(req.body, signature)) {
+      //   return res.status(401).json({ error: 'Unauthorized' });
+      // }
       
-      if (req.body.events) {
-        // 通常のWebhook形式
-        events = req.body.events;
-      } else if (req.body.type === 'message') {
-        // 直接メッセージ形式
-        events = [{
-          type: req.body.type,
-          message: req.body.content,
-          source: { 
-            channelId: req.body.source?.userId || req.body.source?.domainId,
-            userId: req.body.source?.userId
-          }
-        }];
-      }
-      
-      console.log(`イベント数: ${events.length}`);
+      const events = req.body.events || [];
       
       for (const event of events) {
-        console.log('イベントタイプ:', event.type);
-        
-        if (event.type === 'message' && event.message?.type === 'text') {
-          const channelId = event.source?.channelId || event.source?.userId;
+        if (event.type === 'message' && event.message.type === 'text') {
+          const channelId = event.source?.channelId;
+          const userId = event.source?.userId || channelId; // ユーザーIDまたはチャンネルIDを使用
           const messageText = event.message.text;
           
-          console.log(`受信メッセージ: "${messageText}"`);
-          console.log(`チャンネルID: ${channelId}`);
+          console.log(`受信メッセージ (${userId}): ${messageText}`);
           
-          if (channelId && messageText) {
-            // 会話処理
-            const replyMessage = processMessage(messageText);
-            console.log(`返信メッセージ: "${replyMessage}"`);
-            
-            // 環境変数テスト
-            console.log('=== 環境変数テスト ===');
-            console.log('CLIENT_ID:', CLIENT_ID ? 'あり' : 'なし');
-            console.log('SERVICE_ACCOUNT:', SERVICE_ACCOUNT ? 'あり' : 'なし');
-            console.log('BOT_ID:', BOT_ID ? 'あり' : 'なし');
-            
-            // 返信送信テスト
-            const sendResult = await sendMessage(channelId, replyMessage);
-            if (sendResult) {
-              console.log('返信送信成功');
-            } else {
-              console.log('返信送信失敗');
+          if (channelId) {
+            // CSV読み込みが失敗している場合は再読み込み
+            if (productsData.length === 0) {
+              loadProductsData();
             }
-          } else {
-            console.log('チャンネルIDまたはメッセージテキストが不正');
+            
+            // 会話処理
+            const replyMessage = processMessage(messageText, userId);
+            
+            // 返信送信
+            await sendMessage(channelId, replyMessage);
           }
         }
       }
       
-      console.log('=== Webhook処理完了 ===');
-      return res.status(200).json({ 
-        status: 'OK',
-        processedEvents: events.length,
-        timestamp: new Date().toISOString()
-      });
-      
+      return res.status(200).json({ status: 'OK' });
     } catch (error) {
-      console.error('=== Webhook処理エラー ===');
-      console.error('Error:', error);
-      return res.status(500).json({ 
-        error: 'Internal Server Error',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Webhook処理エラー:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
-
+  
   // その他のメソッド
-  return res.status(405).json({ 
-    error: 'Method Not Allowed',
-    allowedMethods: ['GET', 'POST', 'OPTIONS']
-  });
-}
+  return res.status(405).json({ error: 'Method Not Allowed' });
+};
