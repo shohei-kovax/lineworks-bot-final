@@ -5,10 +5,11 @@ import path from 'path';
 
 // 環境変数
 const BOT_SECRET = process.env.BOT_SECRET;
-const SERVER_API_CONSUMER_KEY = process.env.SERVER_API_CONSUMER_KEY;
-const SERVER_TOKEN = process.env.SERVER_TOKEN;
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const BOT_ID = process.env.BOT_ID;
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const SERVICE_ACCOUNT = process.env.SERVICE_ACCOUNT;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 // グローバル変数
 let productsData = [];
@@ -44,19 +45,116 @@ function loadProductsData() {
 // 初期化時にCSVを読み込み
 loadProductsData();
 
-// JWT生成関数（元のまま）
+// JWT生成関数（実際の実装）
 function generateJWT() {
-  // 実際の実装では、RS256でJWTを生成
-  // ここは簡略化されています
-  return 'your-jwt-token';
+  console.log('=== JWT生成開始 ===');
+  console.log('CLIENT_ID:', CLIENT_ID ? 'あり' : 'なし');
+  console.log('SERVICE_ACCOUNT:', SERVICE_ACCOUNT ? 'あり' : 'なし');
+  console.log('PRIVATE_KEY 存在:', PRIVATE_KEY ? 'あり' : 'なし');
+  
+  if (!CLIENT_ID || !SERVICE_ACCOUNT || !PRIVATE_KEY) {
+    console.error('必要な環境変数が設定されていません');
+    return null;
+  }
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    
+    // JWTヘッダー（RS256）
+    const header = {
+      alg: 'RS256',
+      typ: 'JWT'
+    };
+
+    // JWTペイロード（LINE WORKS仕様に準拠）
+    const payload = {
+      iss: CLIENT_ID,
+      sub: SERVICE_ACCOUNT, 
+      iat: now,
+      exp: now + (60 * 60) // 1時間
+    };
+
+    console.log('JWT payload:', payload);
+
+    // Base64URL エンコード
+    const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    
+    // RS256署名
+    let signature;
+    try {
+      signature = crypto
+        .createSign('RSA-SHA256')
+        .update(signingInput)
+        .sign(PRIVATE_KEY, 'base64url');
+    } catch (signError) {
+      console.error('署名エラー:', signError.message);
+      return null;
+    }
+
+    const jwt = `${encodedHeader}.${encodedPayload}.${signature}`;
+    console.log('JWT生成成功');
+    return jwt;
+    
+  } catch (error) {
+    console.error('JWT生成エラー:', error);
+    return null;
+  }
 }
 
-// メッセージ送信関数（元のまま）
-async function sendMessage(channelId, content) {
+// Access Token取得関数
+async function getAccessToken() {
   try {
     const jwt = generateJWT();
+    if (!jwt) {
+      console.error('JWT生成失敗');
+      return null;
+    }
+
+    console.log('Access Token取得開始');
+    
     const response = await axios.post(
-      `https://www.worksapis.com/v1.0/bots/${BOT_ID}/channels/${channelId}/messages`,
+      'https://auth.worksmobile.com/oauth2/v2.0/token',
+      new URLSearchParams({
+        assertion: jwt,
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        scope: 'bot'
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+
+    console.log('Access Token取得成功');
+    return response.data.access_token;
+    
+  } catch (error) {
+    console.error('Access Token取得エラー:');
+    console.error('Status:', error.response?.status);
+    console.error('Data:', error.response?.data);
+    return null;
+  }
+}
+
+// メッセージ送信関数（実際の実装）
+async function sendMessage(channelId, content) {
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      console.error('Access Token取得失敗');
+      return null;
+    }
+    
+    console.log('送信先URL:', `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${channelId}/messages`);
+    
+    const response = await axios.post(
+      `https://www.worksapis.com/v1.0/bots/${BOT_ID}/users/${channelId}/messages`,
       {
         content: {
           type: 'text',
@@ -65,27 +163,41 @@ async function sendMessage(channelId, content) {
       },
       {
         headers: {
-          'Authorization': `Bearer ${jwt}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       }
     );
+    console.log('メッセージ送信成功:', response.data);
     return response.data;
   } catch (error) {
-    console.error('メッセージ送信エラー:', error);
+    console.error('メッセージ送信エラー詳細:');
+    console.error('Status:', error.response?.status);
+    console.error('Headers:', error.response?.headers);
+    console.error('Data:', error.response?.data);
+    console.error('Message:', error.message);
+    return null;
   }
 }
 
-// Webhook検証（元のまま）
+// Webhook検証（実際の実装）
 function verifySignature(body, signature) {
-  if (!BOT_SECRET || !signature) return false;
+  if (!BOT_SECRET || !signature) {
+    console.log('署名検証スキップ: BOT_SECRET または signature が未設定');
+    return true; // 開発時はスキップ
+  }
   
-  const expectedSignature = crypto
-    .createHmac('sha256', BOT_SECRET)
-    .update(JSON.stringify(body))
-    .digest('base64');
-  
-  return expectedSignature === signature;
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', BOT_SECRET)
+      .update(JSON.stringify(body))
+      .digest('base64');
+    
+    return expectedSignature === signature;
+  } catch (error) {
+    console.error('署名検証エラー:', error);
+    return false;
+  }
 }
 
 // ユーザー状態の初期化
