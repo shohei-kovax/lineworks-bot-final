@@ -1,7 +1,12 @@
-const crypto = require('crypto');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+import crypto from 'crypto';
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES Moduleでの__dirnameの代替
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 環境変数
 const BOT_SECRET = process.env.BOT_SECRET;
@@ -250,7 +255,7 @@ function processMessage(messageText, userId) {
 }
 
 // Vercel関数のメインハンドラー
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // CORS対応
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -315,4 +320,4 @@ module.exports = async (req, res) => {
   
   // その他のメソッド
   return res.status(405).json({ error: 'Method Not Allowed' });
-};
+}
