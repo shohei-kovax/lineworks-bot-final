@@ -281,6 +281,30 @@ export default async function handler(req, res) {
       //   return res.status(401).json({ error: 'Unauthorized' });
       // }
 
+      // 直接メッセージ形式の場合
+      if (req.body.type === 'message' && req.body.content?.type === 'text') {
+        const userId = req.body.source?.userId;
+        const messageText = req.body.content.text;
+        
+        console.log(`受信メッセージ (直接形式) (${userId}): ${messageText}`);
+        
+        if (userId) {
+          // CSV読み込みが失敗している場合は再読み込み
+          if (productsData.length === 0) {
+            loadProductsData();
+          }
+          
+          // 新しい会話処理を使用
+          const replyMessage = processMessage(messageText, userId);
+          
+          // 返信送信（userIdをchannelIdとして使用）
+          await sendMessage(userId, replyMessage);
+        }
+        
+        return res.status(200).json({ status: 'OK' });
+      }
+
+      // 従来のevents形式も念のためサポート
       const events = req.body.events || [];
 
       for (const event of events) {
