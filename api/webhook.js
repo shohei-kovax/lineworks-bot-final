@@ -278,7 +278,8 @@ export default async function handler(req, res) {
   // POSTリクエスト（実際のWebhook）
   if (req.method === 'POST') {
     try {
-      console.log('Webhook受信:', req.body);
+      console.log('Webhook受信:', JSON.stringify(req.body, null, 2));
+      console.log('Request headers:', JSON.stringify(req.headers, null, 2));
       
       // 署名検証（一時的にスキップ）
       // const signature = req.headers['x-works-signature'];
@@ -286,15 +287,37 @@ export default async function handler(req, res) {
       //   return res.status(401).json({ error: 'Unauthorized' });
       // }
       
+      // 直接的なメッセージ受信の場合
+      if (req.body.type === 'message' && req.body.content?.type === 'text') {
+        const userId = req.body.source?.userId;
+        const messageText = req.body.content.text;
+        
+        console.log(`受信メッセージ (${userId}): ${messageText}`);
+        
+        if (userId) {
+          // CSV読み込みが失敗している場合は再読み込み
+          if (productsData.length === 0) {
+            loadProductsData();
+          }
+          
+          // 会話処理
+          const replyMessage = processMessage(messageText, userId);
+          
+          // 返信送信（userIdを使用）
+          await sendMessage(userId, replyMessage);
+        }
+      }
+      
+      // 従来のevents配列形式も対応
       const events = req.body.events || [];
       
       for (const event of events) {
-        if (event.type === 'message' && event.message.type === 'text') {
+        if (event.type === 'message' && event.message?.type === 'text') {
           const channelId = event.source?.channelId;
-          const userId = event.source?.userId || channelId; // ユーザーIDまたはチャンネルIDを使用
+          const userId = event.source?.userId || channelId;
           const messageText = event.message.text;
           
-          console.log(`受信メッセージ (${userId}): ${messageText}`);
+          console.log(`受信メッセージ (events形式) (${userId}): ${messageText}`);
           
           if (channelId) {
             // CSV読み込みが失敗している場合は再読み込み
