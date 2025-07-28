@@ -264,20 +264,6 @@ function processMessage(messageText, userId) {
     return 'リセットしました。何かお探しのスマホはありますか？😊';
   }
   
-  // 発売日に関する質問
-  if (text.includes('いつ') || text.includes('発売日') || text.includes('発売')) {
-    if (userState.brand && userState.model) {
-      const product = searchProducts({
-        brand: userState.brand,
-        model: userState.model
-      })[0];
-      if (product) {
-        return `${userState.brand} ${userState.model}の発売日は${product.releaseday}です📅`;
-      }
-    }
-    return '機種を教えてください。発売日をお調べします📅';
-  }
-  
   // 初期状態または商品検索開始
   if (userState.step === 'initial') {
     if (text.includes('おすすめ') || text.includes('スマホ') || text.includes('探し') || text.includes('欲しい')) {
