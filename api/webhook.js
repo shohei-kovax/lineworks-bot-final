@@ -2,11 +2,6 @@ import crypto from 'crypto';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-// ES Moduleでの__dirnameの代替
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // 環境変数
 const BOT_SECRET = process.env.BOT_SECRET;
@@ -49,14 +44,14 @@ function loadProductsData() {
 // 初期化時にCSVを読み込み
 loadProductsData();
 
-// JWT生成関数（簡略化）
+// JWT生成関数（元のまま）
 function generateJWT() {
   // 実際の実装では、RS256でJWTを生成
   // ここは簡略化されています
   return 'your-jwt-token';
 }
 
-// メッセージ送信関数
+// メッセージ送信関数（元のまま）
 async function sendMessage(channelId, content) {
   try {
     const jwt = generateJWT();
@@ -81,7 +76,7 @@ async function sendMessage(channelId, content) {
   }
 }
 
-// Webhook検証
+// Webhook検証（元のまま）
 function verifySignature(body, signature) {
   if (!BOT_SECRET || !signature) return false;
   
@@ -146,7 +141,7 @@ function getAvailableCapacities(brand, model) {
   return capacities;
 }
 
-// 会話処理メイン関数
+// 会話処理メイン関数（新規追加）
 function processMessage(messageText, userId) {
   const text = messageText.toLowerCase().trim();
   const userState = getUserState(userId);
@@ -254,93 +249,70 @@ function processMessage(messageText, userId) {
   return `「${messageText}」ですね。スマホをお探しでしたら「おすすめ」と言ってください😊`;
 }
 
-// Vercel関数のメインハンドラー
+// Vercel関数のメインハンドラー（元のWebhook構造のまま）
 export default async function handler(req, res) {
   // CORS対応
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-works-signature');
-  
+
   // OPTIONSリクエスト対応
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
+
   // GETリクエスト（テスト用）
   if (req.method === 'GET') {
     return res.status(200).json({ 
-      message: 'CSV対応チャットボット稼働中!',
+      message: 'CSV対応チャットボット稼働中！',
       productsCount: productsData.length,
       timestamp: new Date().toISOString()
     });
   }
-  
+
   // POSTリクエスト（実際のWebhook）
   if (req.method === 'POST') {
     try {
-      console.log('Webhook受信:', JSON.stringify(req.body, null, 2));
-      console.log('Request headers:', JSON.stringify(req.headers, null, 2));
-      
+      console.log('Webhook受信:', req.body);
+
       // 署名検証（一時的にスキップ）
       // const signature = req.headers['x-works-signature'];
       // if (!verifySignature(req.body, signature)) {
       //   return res.status(401).json({ error: 'Unauthorized' });
       // }
-      
-      // 直接的なメッセージ受信の場合
-      if (req.body.type === 'message' && req.body.content?.type === 'text') {
-        const userId = req.body.source?.userId;
-        const messageText = req.body.content.text;
-        
-        console.log(`受信メッセージ (${userId}): ${messageText}`);
-        
-        if (userId) {
-          // CSV読み込みが失敗している場合は再読み込み
-          if (productsData.length === 0) {
-            loadProductsData();
-          }
-          
-          // 会話処理
-          const replyMessage = processMessage(messageText, userId);
-          
-          // 返信送信（userIdを使用）
-          await sendMessage(userId, replyMessage);
-        }
-      }
-      
-      // 従来のevents配列形式も対応
+
       const events = req.body.events || [];
-      
+
       for (const event of events) {
-        if (event.type === 'message' && event.message?.type === 'text') {
+        if (event.type === 'message' && event.message.type === 'text') {
           const channelId = event.source?.channelId;
           const userId = event.source?.userId || channelId;
           const messageText = event.message.text;
-          
-          console.log(`受信メッセージ (events形式) (${userId}): ${messageText}`);
-          
+
+          console.log(`受信メッセージ (${userId}): ${messageText}`);
+
           if (channelId) {
             // CSV読み込みが失敗している場合は再読み込み
             if (productsData.length === 0) {
               loadProductsData();
             }
-            
-            // 会話処理
+
+            // 新しい会話処理を使用
             const replyMessage = processMessage(messageText, userId);
-            
+
             // 返信送信
             await sendMessage(channelId, replyMessage);
           }
         }
       }
-      
+
       return res.status(200).json({ status: 'OK' });
     } catch (error) {
       console.error('Webhook処理エラー:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
-  
+
   // その他のメソッド
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
