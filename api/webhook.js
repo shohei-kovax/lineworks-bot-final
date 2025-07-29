@@ -180,7 +180,7 @@ async function sendMessage(channelId, content) {
   }
 }
 
-// Webhook検証(受信したメッセージが正しいか)
+// Webhook検証(受信したメッセージがLINEWORKSからのものか)
 function verifySignature(body, signature) {
   if (!BOT_SECRET || !signature) {
     console.log('署名検証スキップ: BOT_SECRET または signature が未設定');
