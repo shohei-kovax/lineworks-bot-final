@@ -180,6 +180,99 @@ async function sendMessage(channelId, content) {
   }
 }
 
+
+// メインハンドラー req(メッセージに関する全ての情報)を取得
+export default async function handler(req, res) {
+  // CORS対応
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-works-signature');
+
+  // OPTIONSリクエスト対応
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // GETリクエスト（テスト用）
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      message: 'CSV対応チャットボット稼働中！',
+      productsCount: productsData.length,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // POSTリクエスト（実際のWebhook）
+  if (req.method === 'POST') {
+    try {
+      console.log('Webhook受信:', req.body);
+
+      // 署名検証（一時的にスキップ）
+      // const signature = req.headers['x-works-signature'];
+      // if (!verifySignature(req.body, signature)) {
+      //   return res.status(401).json({ error: 'Unauthorized' });
+      // }
+
+      // 直接メッセージ形式の場合
+      if (req.body.type === 'message' && req.body.content?.type === 'text') {
+        const userId = req.body.source?.userId;
+        const messageText = req.body.content.text;
+        
+        console.log(`受信メッセージ (直接形式) (${userId}): ${messageText}`);
+        
+        if (userId) {
+          // CSV読み込みが失敗している場合は再読み込み
+          if (productsData.length === 0) {
+            loadProductsData();
+          }
+          
+          // 新しい会話処理を使用
+          const replyMessage = processMessage(messageText, userId);
+          
+          // 返信送信（userIdをchannelIdとして使用）
+          await sendMessage(userId, replyMessage);
+        }
+        
+        return res.status(200).json({ status: 'OK' });
+      }
+
+      // 従来のevents形式も念のためサポート
+      const events = req.body.events || [];
+
+      for (const event of events) {
+        if (event.type === 'message' && event.message.type === 'text') {
+          const channelId = event.source?.channelId;
+          const userId = event.source?.userId || channelId;
+          const messageText = event.message.text;
+
+          console.log(`受信メッセージ (${userId}): ${messageText}`);
+
+          if (channelId) {
+            // CSV読み込みが失敗している場合は再読み込み
+            if (productsData.length === 0) {
+              loadProductsData();
+            }
+
+            // 新しい会話処理を使用
+            const replyMessage = processMessage(messageText, userId);
+
+            // 返信送信
+            await sendMessage(channelId, replyMessage);
+          }
+        }
+      }
+
+      return res.status(200).json({ status: 'OK' });
+    } catch (error) {
+      console.error('Webhook処理エラー:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  // その他のメソッド
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
 // Webhook検証(受信したメッセージがLINEWORKSからのものか)
 function verifySignature(body, signature) {
   if (!BOT_SECRET || !signature) {
@@ -345,96 +438,4 @@ function processMessage(messageText, userId) {
   
   // デフォルトの応答
   return `「${messageText}」ですね。スマホをお探しでしたら「おすすめ」と言ってください😊`;
-}
-
-// メインハンドラー req(メッセージに関する全ての情報)を取得
-export default async function handler(req, res) {
-  // CORS対応
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-works-signature');
-
-  // OPTIONSリクエスト対応
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // GETリクエスト（テスト用）
-  if (req.method === 'GET') {
-    return res.status(200).json({ 
-      message: 'CSV対応チャットボット稼働中！',
-      productsCount: productsData.length,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  // POSTリクエスト（実際のWebhook）
-  if (req.method === 'POST') {
-    try {
-      console.log('Webhook受信:', req.body);
-
-      // 署名検証（一時的にスキップ）
-      // const signature = req.headers['x-works-signature'];
-      // if (!verifySignature(req.body, signature)) {
-      //   return res.status(401).json({ error: 'Unauthorized' });
-      // }
-
-      // 直接メッセージ形式の場合
-      if (req.body.type === 'message' && req.body.content?.type === 'text') {
-        const userId = req.body.source?.userId;
-        const messageText = req.body.content.text;
-        
-        console.log(`受信メッセージ (直接形式) (${userId}): ${messageText}`);
-        
-        if (userId) {
-          // CSV読み込みが失敗している場合は再読み込み
-          if (productsData.length === 0) {
-            loadProductsData();
-          }
-          
-          // 新しい会話処理を使用
-          const replyMessage = processMessage(messageText, userId);
-          
-          // 返信送信（userIdをchannelIdとして使用）
-          await sendMessage(userId, replyMessage);
-        }
-        
-        return res.status(200).json({ status: 'OK' });
-      }
-
-      // 従来のevents形式も念のためサポート
-      const events = req.body.events || [];
-
-      for (const event of events) {
-        if (event.type === 'message' && event.message.type === 'text') {
-          const channelId = event.source?.channelId;
-          const userId = event.source?.userId || channelId;
-          const messageText = event.message.text;
-
-          console.log(`受信メッセージ (${userId}): ${messageText}`);
-
-          if (channelId) {
-            // CSV読み込みが失敗している場合は再読み込み
-            if (productsData.length === 0) {
-              loadProductsData();
-            }
-
-            // 新しい会話処理を使用
-            const replyMessage = processMessage(messageText, userId);
-
-            // 返信送信
-            await sendMessage(channelId, replyMessage);
-          }
-        }
-      }
-
-      return res.status(200).json({ status: 'OK' });
-    } catch (error) {
-      console.error('Webhook処理エラー:', error);
-      return res.status(500).json({ error: 'Internal Server Error' });
-    }
-  }
-
-  // その他のメソッド
-  return res.status(405).json({ error: 'Method Not Allowed' });
 }
