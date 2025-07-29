@@ -347,7 +347,7 @@ function processMessage(messageText, userId) {
   return `「${messageText}」ですね。スマホをお探しでしたら「おすすめ」と言ってください😊`;
 }
 
-// Vercel関数のメインハンドラー（元のWebhook構造のまま）
+// メインハンドラー req(メッセージに関する全ての情報)を取得
 export default async function handler(req, res) {
   // CORS対応
   res.setHeader('Access-Control-Allow-Origin', '*');
