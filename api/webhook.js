@@ -142,7 +142,7 @@ async function getAccessToken() {
   }
 }
 
-// メッセージ送信関数（実際の実装）
+// versel → LINEWORKS → ユーザー
 async function sendMessage(channelId, content) {
   try {
     const accessToken = await getAccessToken();
